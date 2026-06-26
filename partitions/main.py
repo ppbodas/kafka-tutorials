@@ -12,6 +12,9 @@ NUM_PARTITIONS = 3
 CONSUMER_GROUP = "demo-group"
 PRODUCE_INTERVAL = 1.0
 
+COLORS = ["\033[92m", "\033[94m", "\033[93m"]  # green, blue, yellow
+RESET = "\033[0m"
+
 
 # ---------------------------------------------------------------------------
 # Admin — create topic
@@ -71,22 +74,33 @@ def producer_loop() -> None:
 # Consumers
 # ---------------------------------------------------------------------------
 
+CHECKPOINT_EVERY = 10
+
+
 def consumer_loop(consumer_id: int) -> None:
+    color = COLORS[(consumer_id - 1) % len(COLORS)]
+
     consumer = KafkaConsumer(
         TOPIC,
         bootstrap_servers=KAFKA_BOOTSTRAP,
         group_id=CONSUMER_GROUP,
         auto_offset_reset="earliest",
+        enable_auto_commit=False,
         value_deserializer=lambda m: json.loads(m.decode()),
     )
-    print(f"[consumer-{consumer_id}] joined group '{CONSUMER_GROUP}', waiting for assignment...")
+    print(f"{color}[consumer-{consumer_id}] joined group '{CONSUMER_GROUP}', waiting for assignment...{RESET}")
 
+    count = 0
     for msg in consumer:
         data = msg.value
         print(
-            f"[consumer-{consumer_id}]  partition={msg.partition}  "
-            f"offset={msg.offset:>4}  id={data['id']:>4}  text='{data['text']}'"
+            f"{color}[consumer-{consumer_id}]  partition={msg.partition}  "
+            f"offset={msg.offset:>4}  id={data['id']:>4}  text='{data['text']}'{RESET}"
         )
+        count += 1
+        if count % CHECKPOINT_EVERY == 0:
+            consumer.commit()
+            print(f"{color}[consumer-{consumer_id}] checkpointed at offset {msg.offset} (partition {msg.partition}){RESET}")
 
 
 # ---------------------------------------------------------------------------
